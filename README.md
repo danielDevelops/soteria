@@ -63,3 +63,24 @@ This library is used for maintaining state of permissions on the server and clai
             }
         }
     ```
+
+## Windows Authentication
+* To use Windows authentication with this library with forms authentication you must use IIS
+* Adding this to the web.config will force setting the User.Identity property on the controller for the path(s) specified
+    ``` xml
+    <location path="Auth/WindowsAuth">
+    <system.webServer>
+      <security>
+        <authentication>
+          <windowsAuthentication enabled="true" />
+          <anonymousAuthentication enabled="false" />
+        </authentication>
+      </security>
+    </system.webServer>
+  </location>
+    ```
+* *Note be sure to set both Anonymous and Windows authentication to active in Visual studio to get the credentials passed through from IIS
+* In the path that is set in the Startup.cs and set in the web.config you can use User.Identity.Name to get the logged in user name
+    ``` csharp
+    var winUserName = User.Identity.Name;
+    ```
