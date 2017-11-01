@@ -19,6 +19,7 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
             Windows,
             Forms
         }
+        HttpContext _context;
         public string GenericTypeName { get; private set; }
         public string UserName { get; private set; }
         public bool ValidClaimInformation { get; private set; }
@@ -67,13 +68,21 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
             return permissions.Count(t => t.ToLower() == role.ToLower()) > 0;
 
         }
-        public SoteriaUser(ClaimsPrincipal user)
+        public List<string> GetPermissions()
         {
+            var permissionHandler = (IPermissionHandler)_context.RequestServices.GetService(typeof(IPermissionHandler));
+            var permissionManager = new PermissionManager(permissionHandler);
+            return permissionManager.GetPermission(UserName);
+        }
+        public SoteriaUser(ClaimsPrincipal user, HttpContext context)
+        {
+            _context = context;
             var identity = user.Identities.SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName);
             Init(identity);
         }
-        public SoteriaUser(ClaimsIdentity identity)
+        public SoteriaUser(ClaimsIdentity identity, HttpContext context)
         {
+            _context = context;
             Init(identity);
         }
         private void Init(ClaimsIdentity identity)

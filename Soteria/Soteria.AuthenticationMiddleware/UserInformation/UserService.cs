@@ -19,7 +19,7 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         public UserService(IHttpContextAccessor context)
         {
             _context = context;
-            User = new SoteriaUser<T>(_context.HttpContext.User);
+            User = new SoteriaUser<T>(_context.HttpContext.User, _context.HttpContext);
         }
     }
 }
