@@ -157,5 +157,34 @@ namespace Soteria.AuthenticationMiddleware
             
         }
 
+        public static List<string> GetAllAssignedPermissions(Assembly assembly)
+        {
+            var permissions = new HashSet<string>();
+            var attributeClassUsage = from type in assembly.GetTypes()
+                                      where Attribute.IsDefined(type, typeof(SoteriaPermissionCheck))
+                                      select type;
+            foreach (var cls in attributeClassUsage)
+            {
+                var authorization = cls.GetCustomAttributes(typeof(SoteriaPermissionCheck));
+                foreach (var item in authorization.SelectMany(t => ((SoteriaPermissionCheck)t).Roles.Split(',')))
+                {
+                    permissions.Add(item.Trim());
+                }
+            }
+            var methodUsage = (from type in assembly.GetTypes()
+                               from method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
+                               where Attribute.IsDefined(method, typeof(SoteriaPermissionCheck))
+                               select method);
+            foreach (var method in methodUsage)
+            {
+                var authorization = method.GetCustomAttributes(typeof(SoteriaPermissionCheck));
+                foreach (var item in authorization.SelectMany(t => ((SoteriaPermissionCheck)t).Roles.Split(',')))
+                {
+                    permissions.Add(item.Trim());
+                }
+            }
+
+            return permissions.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
+        }
     }
 }
