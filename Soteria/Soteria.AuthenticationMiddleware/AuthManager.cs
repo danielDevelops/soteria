@@ -166,7 +166,7 @@ namespace Soteria.AuthenticationMiddleware
             foreach (var cls in attributeClassUsage)
             {
                 var authorization = cls.GetCustomAttributes(typeof(SoteriaPermissionCheck));
-                foreach (var item in authorization.SelectMany(t => ((SoteriaPermissionCheck)t).Roles.Split(',')))
+                foreach (var item in authorization.SelectMany(t => ((SoteriaPermissionCheck)t).PermissionList))
                 {
                     permissions.Add(item.Trim());
                 }
@@ -178,7 +178,7 @@ namespace Soteria.AuthenticationMiddleware
             foreach (var method in methodUsage)
             {
                 var authorization = method.GetCustomAttributes(typeof(SoteriaPermissionCheck));
-                foreach (var item in authorization.SelectMany(t => ((SoteriaPermissionCheck)t).Roles.Split(',')))
+                foreach (var item in authorization.SelectMany(t => ((SoteriaPermissionCheck)t).PermissionList))
                 {
                     permissions.Add(item.Trim());
                 }
@@ -186,5 +186,6 @@ namespace Soteria.AuthenticationMiddleware
 
             return permissions.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
         }
+
     }
 }
