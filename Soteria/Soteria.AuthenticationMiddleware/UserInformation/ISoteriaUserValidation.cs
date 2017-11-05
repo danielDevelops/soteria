@@ -12,6 +12,6 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         bool ValidClaimInformation { get; }
         ClaimsIdentity Identity { get; }
         bool IsAuthenticated { get; }
-        bool IsInRole(HttpContext context, string role);
+        bool IsInRole(string role);
     }
 }

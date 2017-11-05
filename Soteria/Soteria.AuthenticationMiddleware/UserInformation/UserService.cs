@@ -14,7 +14,7 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         public SoteriaUser<T> User { get; private set; }
         public bool IsUserInRole(string role)
         {
-            return User.IsInRole(_context.HttpContext, role);
+            return User.IsInRole(role);
         }
         public UserService(IHttpContextAccessor context)
         {
