@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using System.Reflection;
 using System.Linq.Expressions;
+using System.Collections;
 
 namespace Soteria.AuthenticationMiddleware.UserInformation
 {
@@ -51,7 +52,9 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
             var claim = Identity.FindFirst(fieldName);
             if (claim != null)
                 Identity.RemoveClaim(claim);
-            Identity.AddClaim(new Claim(fieldName, value.ToString()));
+            var serialziedValue = Newtonsoft.Json.JsonConvert.SerializeObject(value);
+            Identity.AddClaim(new Claim(fieldName, serialziedValue));
+           
 
             Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignOutAsync(context, Identity.AuthenticationType);
             Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync(context, new ClaimsPrincipal(Identity));
@@ -104,7 +107,10 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
             foreach (var item in (typeof(T)).GetProperties())
             {
                 if (identity.FindFirst(item.Name) != null)
-                    item.SetValue(props, identity.FindFirst(item.Name).Value);
+                {
+                    var obj = Newtonsoft.Json.JsonConvert.DeserializeObject(identity.FindFirst(item.Name).Value, item.PropertyType);
+                    item.SetValue(props, obj);
+                }
             }
             this.UserProperties = props;
             ValidClaimInformation = !string.IsNullOrWhiteSpace(UserName);

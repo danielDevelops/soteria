@@ -134,7 +134,7 @@ namespace Soteria.AuthenticationMiddleware
             foreach (var item in typeof(T).GetProperties())
             {
                 var val = item.GetValue(genericUser);
-                claims.Add(new Claim(item.Name, val.GetStringFromObject()));
+                claims.Add(new Claim(item.Name, Newtonsoft.Json.JsonConvert.SerializeObject(val)));
             }
 
             var claim = new ClaimsIdentity(claims, MiddleWareInstanceName);

@@ -15,12 +15,6 @@ namespace Soteria.AuthenticationMiddleware
                 return string.Empty;
             return value;
         }
-        public static string GetStringFromObject(this object value)
-        {
-            if (value == null)
-                return string.Empty;
-            return value.ToString();
-        }
         public static bool IsAjaxRequest(this HttpRequest request)
         {
             if (request.Headers["x-requested-with"] == "XMLHttpRequest")
