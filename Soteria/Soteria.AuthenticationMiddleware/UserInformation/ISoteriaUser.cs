@@ -12,6 +12,6 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
     {
         T UserProperties { get; }
         string UserName { get; }
-        void ChangeFieldValue<TValue>(HttpContext context, Expression<Func<T, TValue>> field, TValue value);
+        void ChangeFieldValue<TValue>(Expression<Func<T, TValue>> field, TValue value);
     }
 }

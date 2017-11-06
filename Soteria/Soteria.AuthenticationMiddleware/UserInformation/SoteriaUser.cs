@@ -33,7 +33,7 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         {
             PermissionManager.ClearPermissions(this.UserName);
         }
-        public void ChangeFieldValue<TValue>(HttpContext context, Expression<Func<T,TValue>> field, TValue value) 
+        public void ChangeFieldValue<TValue>(Expression<Func<T,TValue>> field, TValue value) 
         {
             if (object.Equals(field, null))
                 throw new NullReferenceException("A field must be selected to select a field?  That makes sense right?");
@@ -56,8 +56,8 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
             Identity.AddClaim(new Claim(fieldName, serialziedValue));
            
 
-            Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignOutAsync(context, Identity.AuthenticationType);
-            Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync(context, new ClaimsPrincipal(Identity));
+            Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignOutAsync(_context, Identity.AuthenticationType);
+            Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync(_context, new ClaimsPrincipal(Identity));
 
         }
 
