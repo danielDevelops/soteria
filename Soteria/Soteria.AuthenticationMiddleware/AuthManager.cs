@@ -16,13 +16,22 @@ using System.Reflection;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Server.IISIntegration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Soteria.AuthenticationMiddleware
 {
     public static class AuthManager
     {
         public static readonly string MiddleWareInstanceName = "Soteria";
-        public static void InitializeAuthenticationService<TPermissionHandler, GenericUser>(this IServiceCollection serviceCollection, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes) 
+        public static void InitializeAuthenticationService<TPermissionHandler, GenericUser>(this IServiceCollection serviceCollection, 
+            string loginPath, 
+            string windowsLoginPath, 
+            string accessDeniedPath, 
+            string logoutPath, 
+            bool forceSecureCookie,
+            int defaultExpireMinutes,
+            SymmetricSecurityKey key
+            ) 
             where GenericUser: class, new()
             where TPermissionHandler : class, IPermissionHandler
         {
@@ -45,61 +54,90 @@ namespace Soteria.AuthenticationMiddleware
                 options.DefaultScheme = MiddleWareInstanceName;
             })
             .AddCookie(MiddleWareInstanceName, cookie =>
-                {
-                    cookie.LoginPath = new PathString(loginPath);
-                    cookie.LogoutPath = new PathString(logoutPath);
-                    cookie.AccessDeniedPath = accessDeniedPath;
-                    cookie.Cookie.Name = MiddleWareInstanceName;
-                    cookie.Cookie.SecurePolicy = forceSecureCookie ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
-                    cookie.SlidingExpiration = true;
-                    cookie.ExpireTimeSpan = TimeSpan.FromMinutes(defaultExpireMinutes);
-                    cookie.Events = new CookieAuthenticationEvents
-                    {
-                        OnValidatePrincipal = ctx =>
-                        {
-                            return Task.CompletedTask;
-                        },
-                        OnSigningIn = ctx =>
-                        {
-                            var expireTime = (ctx.CookieOptions.Expires ?? DateTime.Now.AddMinutes(defaultExpireMinutes)) - DateTime.Now;
-                            ctx.Options.ExpireTimeSpan = expireTime;
-                            return Task.FromResult(0);
-                        },
-                        OnRedirectToLogin = async ctx =>
-                        {
-                            if (ctx.Request.IsAjaxRequest())
-                            {
-                                ctx.HttpContext.Response.StatusCode = 401;
-                                await ctx.Response.WriteAsync("Unauthenticated");
-                                return;
-                            }
-                            var requestBase = GetRequestBasePath(ctx);
-                            var queryString = "";
-                            if (ctx.Request.Query.Count > 0)
-                                queryString = "?" + string.Join("&", ctx.Request.Query.Select(t => $"{t.Key}={t.Value}"));
-                            var redirectTo = System.Net.WebUtility.UrlEncode($"{requestBase}{ctx.Request.Path}{queryString}");
-                            if (ctx.Request.Path == new PathString(windowsLoginPath))
-                                return;
-                            ctx.Response.Redirect($"{requestBase}{ctx.Options.LoginPath}?ReturnUrl={redirectTo}");
-                            return;
-                        },
-                        OnRedirectToAccessDenied = async ctx =>
-                        {
-                            if (ctx.Request.IsAjaxRequest())
-                            {
-                                ctx.HttpContext.Response.StatusCode = 403;
-                                await ctx.Response.WriteAsync("Unauthorized");
-                                return;
-                            }
-                            var requestBase = GetRequestBasePath(ctx);
-                            ctx.Response.Redirect($"{requestBase}{ctx.Options.AccessDeniedPath}");
-                            return;
-                        }
-                    };
-                });
+            {
+                SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes);
+            })
+            .AddJwtBearer(MiddleWareInstanceName, jwt =>
+            {
+                jwt.TokenValidationParameters = CreateTokenParameters(key, "Soteria", "Soteria");
+            });
+            
                 
         }
+        public static void InitiializeAuthenticationApp(this IApplicationBuilder app)
+        {
+            app.UseAuthentication();
+          
+        }
+        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes)
+        {
+            cookie.LoginPath = new PathString(loginPath);
+            cookie.LogoutPath = new PathString(logoutPath);
+            cookie.AccessDeniedPath = accessDeniedPath;
+            cookie.Cookie.Name = MiddleWareInstanceName;
+            cookie.Cookie.SecurePolicy = forceSecureCookie ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
+            cookie.SlidingExpiration = true;
+            cookie.ExpireTimeSpan = TimeSpan.FromMinutes(defaultExpireMinutes);
+            cookie.Events = new CookieAuthenticationEvents
+            {
+                OnValidatePrincipal = ctx =>
+                {
+                    return Task.CompletedTask;
+                },
+                OnSigningIn = ctx =>
+                {
+                    var expireTime = (ctx.CookieOptions.Expires ?? DateTime.Now.AddMinutes(defaultExpireMinutes)) - DateTime.Now;
+                    ctx.Options.ExpireTimeSpan = expireTime;
+                    return Task.FromResult(0);
+                },
+                OnRedirectToLogin = async ctx =>
+                {
+                    if (ctx.Request.IsAjaxRequest())
+                    {
+                        ctx.HttpContext.Response.StatusCode = 401;
+                        await ctx.Response.WriteAsync("Unauthenticated");
+                        return;
+                    }
+                    var requestBase = GetRequestBasePath(ctx);
+                    var queryString = "";
+                    if (ctx.Request.Query.Count > 0)
+                        queryString = "?" + string.Join("&", ctx.Request.Query.Select(t => $"{t.Key}={t.Value}"));
+                    var redirectTo = System.Net.WebUtility.UrlEncode($"{requestBase}{ctx.Request.Path}{queryString}");
+                    if (ctx.Request.Path == new PathString(windowsLoginPath))
+                        return;
+                    ctx.Response.Redirect($"{requestBase}{ctx.Options.LoginPath}?ReturnUrl={redirectTo}");
+                    return;
+                },
+                OnRedirectToAccessDenied = async ctx =>
+                {
+                    if (ctx.Request.IsAjaxRequest())
+                    {
+                        ctx.HttpContext.Response.StatusCode = 403;
+                        await ctx.Response.WriteAsync("Unauthorized");
+                        return;
+                    }
+                    var requestBase = GetRequestBasePath(ctx);
+                    ctx.Response.Redirect($"{requestBase}{ctx.Options.AccessDeniedPath}");
+                    return;
+                }
+            };
+        }
 
+        private static TokenValidationParameters CreateTokenParameters(SymmetricSecurityKey key, string issuer, string audience)
+        {
+            return new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = key,
+                ValidateIssuer = true,
+                ValidIssuer = issuer,
+                ValidateAudience = true,
+                ValidAudience = audience,
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(3)
+
+            };
+        }
         private static string GetRequestBasePath(RedirectContext<CookieAuthenticationOptions> ctx)
         {
             var requestBase = "";
