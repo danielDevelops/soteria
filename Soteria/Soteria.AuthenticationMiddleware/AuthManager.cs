@@ -38,7 +38,6 @@ namespace Soteria.AuthenticationMiddleware
             where TPermissionHandler : class, IPermissionHandler
         {
             _key = key;
-            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, "Soteria", "Soteria"));
             serviceCollection.AddScoped<UserService<GenericUser>>();
             serviceCollection.AddTransient<IPermissionHandler, TPermissionHandler>();
             serviceCollection.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
@@ -51,12 +50,13 @@ namespace Soteria.AuthenticationMiddleware
                 });
             });
 
-            var jwtTokenParameters = CreateTokenParameters(key, "Soteria", "Soteria");
+            var jwtTokenParameters = CreateTokenParameters(key, "Soteria", "Soteria", $"{MiddleWareInstanceName}-jwt");
+            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, "Soteria", "Soteria", MiddleWareInstanceName));
             serviceCollection.AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = MiddleWareInstanceName;
-                options.DefaultChallengeScheme = MiddleWareInstanceName;
-                options.DefaultScheme = MiddleWareInstanceName;
+                options.DefaultAuthenticateScheme = $"{MiddleWareInstanceName}-jwt";
+                options.DefaultChallengeScheme = $"{MiddleWareInstanceName}-jwt";
+                options.DefaultScheme = $"{MiddleWareInstanceName}-jwt";
             })
             .AddCookie(MiddleWareInstanceName, cookie =>
             {
@@ -64,6 +64,15 @@ namespace Soteria.AuthenticationMiddleware
             })
             .AddJwtBearer($"{MiddleWareInstanceName}-jwt", jwt =>
             {
+                jwt.RequireHttpsMetadata = false;
+                jwt.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+                {
+                    OnMessageReceived = ctx =>
+                    {
+
+                        return Task.CompletedTask;
+                    }
+                };   
                 jwt.TokenValidationParameters = jwtTokenParameters;
             });
             
@@ -130,7 +139,7 @@ namespace Soteria.AuthenticationMiddleware
             };
         }
 
-        private static TokenValidationParameters CreateTokenParameters(SymmetricSecurityKey key, string issuer, string audience)
+        private static TokenValidationParameters CreateTokenParameters(SymmetricSecurityKey key, string issuer, string audience, string authType)
         {
             return new TokenValidationParameters
             {
@@ -142,7 +151,7 @@ namespace Soteria.AuthenticationMiddleware
                 ValidAudience = audience,
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.FromMinutes(3),
-                AuthenticationType = MiddleWareInstanceName
+                AuthenticationType = authType
 
             };
         }
@@ -222,7 +231,7 @@ namespace Soteria.AuthenticationMiddleware
             }
 
             var claim = new ClaimsIdentity(claims, MiddleWareInstanceName);
-            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(_key, "Soteria", "Soteria"));
+            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(_key, "Soteria", "Soteria", $"{MiddleWareInstanceName}-jwt"));
             return soteriaJwtDataFormat.CreateJWT(claims, DateTime.Now, DateTime.Now.AddMinutes(5));
 
         }

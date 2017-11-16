@@ -55,7 +55,7 @@ namespace Soteria.AuthenticationMiddleware
             }
 
             // Token validation passed
-            return new AuthenticationTicket(principal, new Microsoft.AspNetCore.Authentication.AuthenticationProperties(), $"{AuthManager.MiddleWareInstanceName}-jwt");
+            return new AuthenticationTicket(principal, new Microsoft.AspNetCore.Authentication.AuthenticationProperties(), $"{AuthManager.MiddleWareInstanceName}");
         }
 
         public string Protect(AuthenticationTicket data) => Protect(data, null);
@@ -75,11 +75,12 @@ namespace Soteria.AuthenticationMiddleware
             
             var token = new JwtSecurityToken(
                 _validationParameters.ValidIssuer, audienceId, claims, issued.Value.UtcDateTime, expires.Value.UtcDateTime, signingKey);
-
+           
             var handler = new JwtSecurityTokenHandler();
-
+            
             var jwt = handler.WriteToken(token);
-
+            SecurityToken test;
+            var isValid = handler.ValidateToken(jwt, _validationParameters, out test);
             return jwt;
         }
     }
