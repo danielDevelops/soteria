@@ -23,6 +23,8 @@ namespace Soteria.AuthenticationMiddleware
     public static class AuthManager
     {
         public static readonly string MiddleWareInstanceName = "Soteria";
+        private static SymmetricSecurityKey _key;
+
         public static void InitializeAuthenticationService<TPermissionHandler, GenericUser>(this IServiceCollection serviceCollection, 
             string loginPath, 
             string windowsLoginPath, 
@@ -35,6 +37,8 @@ namespace Soteria.AuthenticationMiddleware
             where GenericUser: class, new()
             where TPermissionHandler : class, IPermissionHandler
         {
+            _key = key;
+            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, "Soteria", "Soteria"));
             serviceCollection.AddScoped<UserService<GenericUser>>();
             serviceCollection.AddTransient<IPermissionHandler, TPermissionHandler>();
             serviceCollection.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
@@ -47,6 +51,7 @@ namespace Soteria.AuthenticationMiddleware
                 });
             });
 
+            var jwtTokenParameters = CreateTokenParameters(key, "Soteria", "Soteria");
             serviceCollection.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = MiddleWareInstanceName;
@@ -55,11 +60,11 @@ namespace Soteria.AuthenticationMiddleware
             })
             .AddCookie(MiddleWareInstanceName, cookie =>
             {
-                SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes);
+                SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes, soteriaJwtDataFormat);
             })
-            .AddJwtBearer(MiddleWareInstanceName, jwt =>
+            .AddJwtBearer($"{MiddleWareInstanceName}-jwt", jwt =>
             {
-                jwt.TokenValidationParameters = CreateTokenParameters(key, "Soteria", "Soteria");
+                jwt.TokenValidationParameters = jwtTokenParameters;
             });
             
                 
@@ -69,7 +74,8 @@ namespace Soteria.AuthenticationMiddleware
             app.UseAuthentication();
           
         }
-        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes)
+        
+        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes, SoteriaJwtDataFormat soteriaJwtDataFormat)
         {
             cookie.LoginPath = new PathString(loginPath);
             cookie.LogoutPath = new PathString(logoutPath);
@@ -78,6 +84,7 @@ namespace Soteria.AuthenticationMiddleware
             cookie.Cookie.SecurePolicy = forceSecureCookie ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
             cookie.SlidingExpiration = true;
             cookie.ExpireTimeSpan = TimeSpan.FromMinutes(defaultExpireMinutes);
+            cookie.TicketDataFormat = soteriaJwtDataFormat;
             cookie.Events = new CookieAuthenticationEvents
             {
                 OnValidatePrincipal = ctx =>
@@ -134,7 +141,8 @@ namespace Soteria.AuthenticationMiddleware
                 ValidateAudience = true,
                 ValidAudience = audience,
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.FromMinutes(3)
+                ClockSkew = TimeSpan.FromMinutes(3),
+                AuthenticationType = MiddleWareInstanceName
 
             };
         }
@@ -155,7 +163,6 @@ namespace Soteria.AuthenticationMiddleware
         public static async Task<ClaimsIdentity> UserSignOn<T>(this HttpContext context, 
             string userName, 
             SoteriaUser<T>.AuthenticationMethod authenticateddBy, 
-            string currentOperatingClient, 
             T genericUser,
             bool isPersistant) where T : class, new()
         {
@@ -194,7 +201,31 @@ namespace Soteria.AuthenticationMiddleware
             await AuthenticationHttpContextExtensions.SignOutAsync(context, MiddleWareInstanceName);
             
         }
+        public static async Task<string> JWTUserSignOn<T>(this HttpContext context,
+            string userName,
+            SoteriaUser<T>.AuthenticationMethod authenticateddBy,
+            T genericUser)where T: class, new()
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, userName),
+                new Claim(ClaimTypes.NameIdentifier, userName.EnsureNullIsEmpty()),
+                new Claim(nameof(SoteriaUser<T>.UserName), userName.EnsureNullIsEmpty()),
+                new Claim(nameof(SoteriaUser<T>.AuthenticatedBy), authenticateddBy.ToString()),
+                new Claim(nameof(SoteriaUser<T>.IsCookiePersistant), false.ToString()),
+                new Claim(nameof(SoteriaUser<T>.GenericTypeName), typeof(T).Name)
+            };
+            foreach (var item in typeof(T).GetProperties())
+            {
+                var val = item.GetValue(genericUser);
+                claims.Add(new Claim(item.Name, Newtonsoft.Json.JsonConvert.SerializeObject(val)));
+            }
 
+            var claim = new ClaimsIdentity(claims, MiddleWareInstanceName);
+            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(_key, "Soteria", "Soteria"));
+            return soteriaJwtDataFormat.CreateJWT(claims, DateTime.Now, DateTime.Now.AddMinutes(5));
+
+        }
         public static List<string> GetAllAssignedPermissions(Assembly assembly)
         {
             var permissions = new HashSet<string>();
