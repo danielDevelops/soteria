@@ -54,9 +54,9 @@ namespace Soteria.AuthenticationMiddleware
             var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, "Soteria", "Soteria", MiddleWareInstanceName));
             serviceCollection.AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = $"{MiddleWareInstanceName}-jwt";
-                options.DefaultChallengeScheme = $"{MiddleWareInstanceName}-jwt";
-                options.DefaultScheme = $"{MiddleWareInstanceName}-jwt";
+                options.DefaultAuthenticateScheme = $"{MiddleWareInstanceName}";
+                options.DefaultChallengeScheme = $"{MiddleWareInstanceName}";
+                options.DefaultScheme = $"{MiddleWareInstanceName}";
             })
             .AddCookie(MiddleWareInstanceName, cookie =>
             {
@@ -64,26 +64,29 @@ namespace Soteria.AuthenticationMiddleware
             })
             .AddJwtBearer($"{MiddleWareInstanceName}-jwt", jwt =>
             {
-                jwt.RequireHttpsMetadata = false;
-                jwt.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
-                {
-                    OnMessageReceived = ctx =>
-                    {
-
-                        return Task.CompletedTask;
-                    }
-                };   
-                jwt.TokenValidationParameters = jwtTokenParameters;
+                SetJWTBearerOptions(jwt, key, jwtTokenParameters);
             });
             
                 
         }
+
         public static void InitiializeAuthenticationApp(this IApplicationBuilder app)
         {
             app.UseAuthentication();
           
         }
-        
+
+        private static void SetJWTBearerOptions(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions jwt, SymmetricSecurityKey key, TokenValidationParameters jwtTokenParameters)
+        {
+            jwt.RequireHttpsMetadata = false;
+            jwt.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+            {
+               
+            };
+            jwt.SecurityTokenValidators.Add(new SoteriaJwtValidator(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, "Soteria", "Soteria", MiddleWareInstanceName)));
+            jwt.TokenValidationParameters = jwtTokenParameters;
+        }
+
         private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes, SoteriaJwtDataFormat soteriaJwtDataFormat)
         {
             cookie.LoginPath = new PathString(loginPath);
@@ -122,6 +125,7 @@ namespace Soteria.AuthenticationMiddleware
                     if (ctx.Request.Path == new PathString(windowsLoginPath))
                         return;
                     ctx.Response.Redirect($"{requestBase}{ctx.Options.LoginPath}?ReturnUrl={redirectTo}");
+                    
                     return;
                 },
                 OnRedirectToAccessDenied = async ctx =>
@@ -213,7 +217,9 @@ namespace Soteria.AuthenticationMiddleware
         public static async Task<string> JWTUserSignOn<T>(this HttpContext context,
             string userName,
             SoteriaUser<T>.AuthenticationMethod authenticateddBy,
-            T genericUser)where T: class, new()
+            T genericUser,
+            int expireInMinutes
+            )where T: class, new()
         {
             var claims = new List<Claim>
             {
@@ -232,7 +238,7 @@ namespace Soteria.AuthenticationMiddleware
 
             var claim = new ClaimsIdentity(claims, MiddleWareInstanceName);
             var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(_key, "Soteria", "Soteria", $"{MiddleWareInstanceName}-jwt"));
-            return soteriaJwtDataFormat.CreateJWT(claims, DateTime.Now, DateTime.Now.AddMinutes(5));
+            return soteriaJwtDataFormat.CreateJWT(claims, DateTime.Now, DateTime.Now.AddMinutes(expireInMinutes));
 
         }
         public static List<string> GetAllAssignedPermissions(Assembly assembly)

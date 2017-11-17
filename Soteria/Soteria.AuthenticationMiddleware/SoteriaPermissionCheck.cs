@@ -10,11 +10,10 @@ namespace Soteria.AuthenticationMiddleware
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
     public class SoteriaPermissionCheck : Attribute, IAuthorizeData
     {
-        public enum Scheme
+        public enum SchemeType
         {
             Cookie,
-            JWT,
-            Either
+            JWT
         }
         internal List<string> PermissionList { get; private set; }
         public string Policy { get { return AuthManager.MiddleWareInstanceName; } set => throw new NotImplementedException($"You cannot set the policy for the {nameof(SoteriaPermissionCheck)} Attribute!!!"); }
@@ -36,27 +35,26 @@ namespace Soteria.AuthenticationMiddleware
         {
             get
             {
-                switch (_selectedScheme)
+                switch (Scheme)
                 {
-                    case Scheme.Cookie:
+                    case SchemeType.Cookie:
                         return AuthManager.MiddleWareInstanceName;
-                    case Scheme.JWT:
+                    case SchemeType.JWT:
                         return $"{AuthManager.MiddleWareInstanceName}-jwt";
-                    case Scheme.Either:
-                        return $"{AuthManager.MiddleWareInstanceName},{ AuthManager.MiddleWareInstanceName}-jwt";
                     default:
-                        return $"{AuthManager.MiddleWareInstanceName},{ AuthManager.MiddleWareInstanceName}-jwt";
+                        return AuthManager.MiddleWareInstanceName;
                 }
                 
             }
             set => throw new NotImplementedException($"Schemes must be set through the contstructor"); }
-        private Scheme _selectedScheme;
+        public SchemeType Scheme { get; set; }
         public SoteriaPermissionCheck() 
         {
             PermissionList = new List<string>();
         }
-        public SoteriaPermissionCheck(string permissions, Scheme scheme) : this()
+        public SoteriaPermissionCheck(string permissions, SchemeType scheme) : this()
         {
+            Scheme = scheme;
             SetupPermissionList(permissions);
         }
 

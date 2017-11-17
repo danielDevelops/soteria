@@ -20,7 +20,7 @@ namespace Soteria.AuthenticationMiddleware
         protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, MiddlewareAuthorizationRequirment requirement, IEnumerable<SoteriaPermissionCheck> attributes)
         {
             var middleWareAuth = context.User.Identities
-                .SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName);
+                .SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName || t.AuthenticationType == $"{AuthManager.MiddleWareInstanceName}-jwt");
             if (middleWareAuth == null)
             {
                 return;
