@@ -16,16 +16,29 @@ using System.Reflection;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Server.IISIntegration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Soteria.AuthenticationMiddleware
 {
     public static class AuthManager
     {
         public static readonly string MiddleWareInstanceName = "Soteria";
-        public static void InitializeAuthenticationService<TPermissionHandler, GenericUser>(this IServiceCollection serviceCollection, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes) 
+        private static SymmetricSecurityKey _key;
+
+        public static void InitializeAuthenticationService<TPermissionHandler, GenericUser>(this IServiceCollection serviceCollection, 
+            string loginPath, 
+            string windowsLoginPath, 
+            string accessDeniedPath, 
+            string logoutPath, 
+            bool forceSecureCookie,
+            int defaultExpireMinutes,
+            SymmetricSecurityKey key,
+            string hostUrl
+            ) 
             where GenericUser: class, new()
             where TPermissionHandler : class, IPermissionHandler
         {
+            _key = key;
             serviceCollection.AddScoped<UserService<GenericUser>>();
             serviceCollection.AddTransient<IPermissionHandler, TPermissionHandler>();
             serviceCollection.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
@@ -38,68 +51,126 @@ namespace Soteria.AuthenticationMiddleware
                 });
             });
 
+            var jwtTokenParameters = CreateTokenParameters(key, hostUrl, hostUrl, $"{MiddleWareInstanceName}-jwt");
+            var soteriaJwtValidator = new SoteriaJwtValidator(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, hostUrl, hostUrl, MiddleWareInstanceName));
             serviceCollection.AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = MiddleWareInstanceName;
-                options.DefaultChallengeScheme = MiddleWareInstanceName;
-                options.DefaultScheme = MiddleWareInstanceName;
+                options.DefaultAuthenticateScheme = $"{MiddleWareInstanceName}";
+                options.DefaultChallengeScheme = $"{MiddleWareInstanceName}";
+                options.DefaultScheme = $"{MiddleWareInstanceName}";
+                
             })
             .AddCookie(MiddleWareInstanceName, cookie =>
-                {
-                    cookie.LoginPath = new PathString(loginPath);
-                    cookie.LogoutPath = new PathString(logoutPath);
-                    cookie.AccessDeniedPath = accessDeniedPath;
-                    cookie.Cookie.Name = MiddleWareInstanceName;
-                    cookie.Cookie.SecurePolicy = forceSecureCookie ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
-                    cookie.SlidingExpiration = true;
-                    cookie.ExpireTimeSpan = TimeSpan.FromMinutes(defaultExpireMinutes);
-                    cookie.Events = new CookieAuthenticationEvents
-                    {
-                        OnValidatePrincipal = ctx =>
-                        {
-                            return Task.CompletedTask;
-                        },
-                        OnSigningIn = ctx =>
-                        {
-                            var expireTime = (ctx.CookieOptions.Expires ?? DateTime.Now.AddMinutes(defaultExpireMinutes)) - DateTime.Now;
-                            ctx.Options.ExpireTimeSpan = expireTime;
-                            return Task.FromResult(0);
-                        },
-                        OnRedirectToLogin = async ctx =>
-                        {
-                            if (ctx.Request.IsAjaxRequest())
-                            {
-                                ctx.HttpContext.Response.StatusCode = 401;
-                                await ctx.Response.WriteAsync("Unauthenticated");
-                                return;
-                            }
-                            var requestBase = GetRequestBasePath(ctx);
-                            var queryString = "";
-                            if (ctx.Request.Query.Count > 0)
-                                queryString = "?" + string.Join("&", ctx.Request.Query.Select(t => $"{t.Key}={t.Value}"));
-                            var redirectTo = System.Net.WebUtility.UrlEncode($"{requestBase}{ctx.Request.Path}{queryString}");
-                            if (ctx.Request.Path == new PathString(windowsLoginPath))
-                                return;
-                            ctx.Response.Redirect($"{requestBase}{ctx.Options.LoginPath}?ReturnUrl={redirectTo}");
-                            return;
-                        },
-                        OnRedirectToAccessDenied = async ctx =>
-                        {
-                            if (ctx.Request.IsAjaxRequest())
-                            {
-                                ctx.HttpContext.Response.StatusCode = 403;
-                                await ctx.Response.WriteAsync("Unauthorized");
-                                return;
-                            }
-                            var requestBase = GetRequestBasePath(ctx);
-                            ctx.Response.Redirect($"{requestBase}{ctx.Options.AccessDeniedPath}");
-                            return;
-                        }
-                    };
-                });
+            {
+                SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes);
+            })
+            .AddJwtBearer($"{MiddleWareInstanceName}-jwt", jwt =>
+            {
+                SetJWTBearerOptions(jwt, key, jwtTokenParameters, soteriaJwtValidator, forceSecureCookie);
+            });
+            
                 
         }
 
+        public static void InitiializeAuthenticationApp(this IApplicationBuilder app)
+        {
+            app.UseAuthentication();
+          
+        }
+
+        private static void SetJWTBearerOptions(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions jwt, SymmetricSecurityKey key, TokenValidationParameters jwtTokenParameters, SoteriaJwtValidator soteriaJwtValidator, bool requireHttps)
+        {
+            jwt.RequireHttpsMetadata = requireHttps;
+            jwt.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+            {
+                OnAuthenticationFailed = async ctx =>
+                {
+                    var identity = ctx.HttpContext.User.Identities.SingleOrDefault(t => t.AuthenticationType == $"{MiddleWareInstanceName}-jwt");
+                    if (identity != null && identity.IsAuthenticated)
+                    {
+                        ctx.Response.StatusCode = 403;
+                    }
+                    else
+                    {
+                        ctx.Response.StatusCode = 401;
+                    }
+                }
+            };
+            jwt.SecurityTokenValidators.Add(soteriaJwtValidator);
+            jwt.TokenValidationParameters = jwtTokenParameters;
+        }
+
+        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes)
+        {
+            cookie.LoginPath = new PathString(loginPath);
+            cookie.LogoutPath = new PathString(logoutPath);
+            cookie.AccessDeniedPath = accessDeniedPath;
+            cookie.Cookie.Name = MiddleWareInstanceName;
+            cookie.Cookie.SecurePolicy = forceSecureCookie ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
+            cookie.SlidingExpiration = true;
+            cookie.ExpireTimeSpan = TimeSpan.FromMinutes(defaultExpireMinutes);
+            cookie.Events = new CookieAuthenticationEvents
+            {
+                OnValidatePrincipal = ctx =>
+                {
+                    return Task.CompletedTask;
+                },
+                OnSigningIn = ctx =>
+                {
+                    var expireTime = (ctx.CookieOptions.Expires ?? DateTime.Now.AddMinutes(defaultExpireMinutes)) - DateTime.Now;
+                    ctx.Options.ExpireTimeSpan = expireTime;
+                    return Task.FromResult(0);
+                },
+                OnRedirectToLogin = async ctx =>
+                {
+                    if (ctx.Request.IsAjaxRequest())
+                    {
+                        ctx.HttpContext.Response.StatusCode = 401;
+                        await ctx.Response.WriteAsync("Unauthenticated");
+                        return;
+                    }
+                    var requestBase = GetRequestBasePath(ctx);
+                    var queryString = "";
+                    if (ctx.Request.Query.Count > 0)
+                        queryString = "?" + string.Join("&", ctx.Request.Query.Select(t => $"{t.Key}={t.Value}"));
+                    var redirectTo = System.Net.WebUtility.UrlEncode($"{requestBase}{ctx.Request.Path}{queryString}");
+                    if (ctx.Request.Path == new PathString(windowsLoginPath))
+                        return;
+                    ctx.Response.Redirect($"{requestBase}{ctx.Options.LoginPath}?ReturnUrl={redirectTo}");
+                    
+                    return;
+                },
+                OnRedirectToAccessDenied = async ctx =>
+                {
+                    if (ctx.Request.IsAjaxRequest())
+                    {
+                        ctx.HttpContext.Response.StatusCode = 403;
+                        await ctx.Response.WriteAsync("Unauthorized");
+                        return;
+                    }
+                    var requestBase = GetRequestBasePath(ctx);
+                    ctx.Response.Redirect($"{requestBase}{ctx.Options.AccessDeniedPath}");
+                    return;
+                }
+            };
+        }
+
+        private static TokenValidationParameters CreateTokenParameters(SymmetricSecurityKey key, string issuer, string audience, string authType)
+        {
+            return new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = key,
+                ValidateIssuer = true,
+                ValidIssuer = issuer,
+                ValidateAudience = true,
+                ValidAudience = audience,
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(3),
+                AuthenticationType = authType
+
+            };
+        }
         private static string GetRequestBasePath(RedirectContext<CookieAuthenticationOptions> ctx)
         {
             var requestBase = "";
@@ -117,7 +188,6 @@ namespace Soteria.AuthenticationMiddleware
         public static async Task<ClaimsIdentity> UserSignOn<T>(this HttpContext context, 
             string userName, 
             SoteriaUser<T>.AuthenticationMethod authenticateddBy, 
-            string currentOperatingClient, 
             T genericUser,
             bool isPersistant) where T : class, new()
         {
@@ -156,7 +226,33 @@ namespace Soteria.AuthenticationMiddleware
             await AuthenticationHttpContextExtensions.SignOutAsync(context, MiddleWareInstanceName);
             
         }
+        public static async Task<string> JWTUserSignOn<T>(this HttpContext context,
+            string userName,
+            SoteriaUser<T>.AuthenticationMethod authenticateddBy,
+            T genericUser,
+            int expireInMinutes
+            )where T: class, new()
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, userName),
+                new Claim(ClaimTypes.NameIdentifier, userName.EnsureNullIsEmpty()),
+                new Claim(nameof(SoteriaUser<T>.UserName), userName.EnsureNullIsEmpty()),
+                new Claim(nameof(SoteriaUser<T>.AuthenticatedBy), authenticateddBy.ToString()),
+                new Claim(nameof(SoteriaUser<T>.IsCookiePersistant), false.ToString()),
+                new Claim(nameof(SoteriaUser<T>.GenericTypeName), typeof(T).Name)
+            };
+            foreach (var item in typeof(T).GetProperties())
+            {
+                var val = item.GetValue(genericUser);
+                claims.Add(new Claim(item.Name, Newtonsoft.Json.JsonConvert.SerializeObject(val)));
+            }
 
+            var claim = new ClaimsIdentity(claims, MiddleWareInstanceName);
+            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(_key, "Soteria", "Soteria", $"{MiddleWareInstanceName}-jwt"));
+            return soteriaJwtDataFormat.CreateJWT(claims, DateTime.Now, DateTime.Now.AddMinutes(expireInMinutes));
+
+        }
         public static List<string> GetAllAssignedPermissions(Assembly assembly)
         {
             var permissions = new HashSet<string>();

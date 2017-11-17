@@ -80,7 +80,7 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         public SoteriaUser(ClaimsPrincipal user, HttpContext context)
         {
             _context = context;
-            var identity = user.Identities.SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName);
+            var identity = user.Identities.SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName || t.AuthenticationType == $"{AuthManager.MiddleWareInstanceName}-jwt");
             Init(identity);
         }
         public SoteriaUser(ClaimsIdentity identity, HttpContext context)
