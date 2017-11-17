@@ -32,7 +32,8 @@ namespace Soteria.AuthenticationMiddleware
             string logoutPath, 
             bool forceSecureCookie,
             int defaultExpireMinutes,
-            SymmetricSecurityKey key
+            SymmetricSecurityKey key,
+            string hostUrl
             ) 
             where GenericUser: class, new()
             where TPermissionHandler : class, IPermissionHandler
@@ -50,21 +51,22 @@ namespace Soteria.AuthenticationMiddleware
                 });
             });
 
-            var jwtTokenParameters = CreateTokenParameters(key, "Soteria", "Soteria", $"{MiddleWareInstanceName}-jwt");
-            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, "Soteria", "Soteria", MiddleWareInstanceName));
+            var jwtTokenParameters = CreateTokenParameters(key, hostUrl, hostUrl, $"{MiddleWareInstanceName}-jwt");
+            var soteriaJwtValidator = new SoteriaJwtValidator(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, hostUrl, hostUrl, MiddleWareInstanceName));
             serviceCollection.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = $"{MiddleWareInstanceName}";
                 options.DefaultChallengeScheme = $"{MiddleWareInstanceName}";
                 options.DefaultScheme = $"{MiddleWareInstanceName}";
+                
             })
             .AddCookie(MiddleWareInstanceName, cookie =>
             {
-                SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes, soteriaJwtDataFormat);
+                SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes);
             })
             .AddJwtBearer($"{MiddleWareInstanceName}-jwt", jwt =>
             {
-                SetJWTBearerOptions(jwt, key, jwtTokenParameters);
+                SetJWTBearerOptions(jwt, key, jwtTokenParameters, soteriaJwtValidator, forceSecureCookie);
             });
             
                 
@@ -76,18 +78,29 @@ namespace Soteria.AuthenticationMiddleware
           
         }
 
-        private static void SetJWTBearerOptions(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions jwt, SymmetricSecurityKey key, TokenValidationParameters jwtTokenParameters)
+        private static void SetJWTBearerOptions(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions jwt, SymmetricSecurityKey key, TokenValidationParameters jwtTokenParameters, SoteriaJwtValidator soteriaJwtValidator, bool requireHttps)
         {
-            jwt.RequireHttpsMetadata = false;
+            jwt.RequireHttpsMetadata = requireHttps;
             jwt.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
             {
-               
+                OnAuthenticationFailed = async ctx =>
+                {
+                    var identity = ctx.HttpContext.User.Identities.SingleOrDefault(t => t.AuthenticationType == $"{MiddleWareInstanceName}-jwt");
+                    if (identity != null && identity.IsAuthenticated)
+                    {
+                        ctx.Response.StatusCode = 403;
+                    }
+                    else
+                    {
+                        ctx.Response.StatusCode = 401;
+                    }
+                }
             };
-            jwt.SecurityTokenValidators.Add(new SoteriaJwtValidator(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, "Soteria", "Soteria", MiddleWareInstanceName)));
+            jwt.SecurityTokenValidators.Add(soteriaJwtValidator);
             jwt.TokenValidationParameters = jwtTokenParameters;
         }
 
-        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes, SoteriaJwtDataFormat soteriaJwtDataFormat)
+        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes)
         {
             cookie.LoginPath = new PathString(loginPath);
             cookie.LogoutPath = new PathString(logoutPath);
@@ -96,7 +109,6 @@ namespace Soteria.AuthenticationMiddleware
             cookie.Cookie.SecurePolicy = forceSecureCookie ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
             cookie.SlidingExpiration = true;
             cookie.ExpireTimeSpan = TimeSpan.FromMinutes(defaultExpireMinutes);
-            cookie.TicketDataFormat = soteriaJwtDataFormat;
             cookie.Events = new CookieAuthenticationEvents
             {
                 OnValidatePrincipal = ctx =>
