@@ -33,7 +33,7 @@ namespace Soteria.AuthenticationMiddleware
             bool forceSecureCookie,
             int defaultExpireMinutes,
             SymmetricSecurityKey key,
-            string hostUrl
+            string hostDomain
             ) 
             where GenericUser: class, new()
             where TPermissionHandler : class, IPermissionHandler
@@ -51,8 +51,8 @@ namespace Soteria.AuthenticationMiddleware
                 });
             });
 
-            var jwtTokenParameters = CreateTokenParameters(key, hostUrl, hostUrl, $"{MiddleWareInstanceName}-jwt");
-            var soteriaJwtValidator = new SoteriaJwtValidator(SecurityAlgorithms.HmacSha256, CreateTokenParameters(key, hostUrl, hostUrl, MiddleWareInstanceName));
+            var jwtTokenParameters = CreateTokenParameters(key, hostDomain, hostDomain, $"{MiddleWareInstanceName}-jwt");
+            var soteriaJwtValidator = new SoteriaJwtValidator(SecurityAlgorithms.HmacSha256, jwtTokenParameters);
             serviceCollection.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = $"{MiddleWareInstanceName}";
@@ -85,7 +85,7 @@ namespace Soteria.AuthenticationMiddleware
             {
                 OnAuthenticationFailed = async ctx =>
                 {
-                    var identity = ctx.HttpContext.User.Identities.SingleOrDefault(t => t.AuthenticationType == $"{MiddleWareInstanceName}-jwt");
+                    var identity = ctx.HttpContext.User?.Identities?.SingleOrDefault(t => t.AuthenticationType == $"{MiddleWareInstanceName}-jwt");
                     if (identity != null && identity.IsAuthenticated)
                     {
                         ctx.Response.StatusCode = 403;
@@ -230,7 +230,8 @@ namespace Soteria.AuthenticationMiddleware
             string userName,
             SoteriaUser<T>.AuthenticationMethod authenticateddBy,
             T genericUser,
-            int expireInMinutes
+            int expireInMinutes,
+            string hostDomain
             )where T: class, new()
         {
             var claims = new List<Claim>
@@ -249,7 +250,7 @@ namespace Soteria.AuthenticationMiddleware
             }
 
             var claim = new ClaimsIdentity(claims, MiddleWareInstanceName);
-            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(_key, "Soteria", "Soteria", $"{MiddleWareInstanceName}-jwt"));
+            var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(_key, hostDomain, hostDomain, $"{MiddleWareInstanceName}-jwt"));
             return soteriaJwtDataFormat.CreateJWT(claims, DateTime.Now, DateTime.Now.AddMinutes(expireInMinutes));
 
         }
