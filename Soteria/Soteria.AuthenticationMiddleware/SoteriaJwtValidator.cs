@@ -29,8 +29,10 @@ namespace Soteria.AuthenticationMiddleware
         {
             if (string.IsNullOrWhiteSpace(securityToken))
                 return false;
-            if (securityToken.Count(t => t == '.') == 3)
-                return true;
+            if (securityToken.Count(t => t == '.') == 2)
+            {
+                return ValidateToken(securityToken, _validationParameters, out SecurityToken token) != null;
+            }
             return false;
         }
 
