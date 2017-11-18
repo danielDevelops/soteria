@@ -80,7 +80,7 @@ namespace Soteria.AuthenticationMiddleware
 
         private static void SetJWTBearerOptions(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions jwt, SymmetricSecurityKey key, TokenValidationParameters jwtTokenParameters, SoteriaJwtValidator soteriaJwtValidator, bool requireHttps)
         {
-            jwt.RequireHttpsMetadata = false;// requireHttps;
+            jwt.RequireHttpsMetadata = requireHttps;
             jwt.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
             {
                 OnAuthenticationFailed = async ctx =>
