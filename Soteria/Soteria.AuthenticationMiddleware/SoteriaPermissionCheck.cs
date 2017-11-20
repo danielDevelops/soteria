@@ -52,6 +52,11 @@ namespace Soteria.AuthenticationMiddleware
         {
             PermissionList = new List<string>();
         }
+        public SoteriaPermissionCheck(string permission) : this()
+        {
+            Scheme = SchemeType.Cookie;
+            SetupPermissionList(permission);
+        }
         public SoteriaPermissionCheck(string permissions, SchemeType scheme) : this()
         {
             Scheme = scheme;
