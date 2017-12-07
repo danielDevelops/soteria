@@ -220,7 +220,7 @@ namespace Soteria.AuthenticationMiddleware
         }
         public static async Task UserSignOut(this HttpContext context)
         {
-            var customUser = context.User.Identities.SingleOrDefault(t => t.Name == MiddleWareInstanceName);
+            var customUser = context.User.Identities.SingleOrDefault(t => t.AuthenticationType == MiddleWareInstanceName);
             if (customUser?.Name != null)
                 PermissionManager.ClearPermissions(customUser.Name);
             await AuthenticationHttpContextExtensions.SignOutAsync(context, MiddleWareInstanceName);
