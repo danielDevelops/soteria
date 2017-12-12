@@ -33,7 +33,8 @@ namespace Soteria.AuthenticationMiddleware
             bool forceSecureCookie,
             int defaultExpireMinutes,
             SymmetricSecurityKey key,
-            string hostDomain
+            string hostDomain,
+            bool cookieHttpOnly = true
             ) 
             where GenericUser: class, new()
             where TPermissionHandler : class, IPermissionHandler
@@ -62,7 +63,7 @@ namespace Soteria.AuthenticationMiddleware
             })
             .AddCookie(MiddleWareInstanceName, cookie =>
             {
-                SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes);
+                SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes, cookieHttpOnly);
             })
             .AddJwtBearer($"{MiddleWareInstanceName}-jwt", jwt =>
             {
@@ -100,7 +101,7 @@ namespace Soteria.AuthenticationMiddleware
             jwt.TokenValidationParameters = jwtTokenParameters;
         }
 
-        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes)
+        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes, bool cookieHttpOnly)
         {
             cookie.LoginPath = new PathString(loginPath);
             cookie.LogoutPath = new PathString(logoutPath);
@@ -109,6 +110,7 @@ namespace Soteria.AuthenticationMiddleware
             cookie.Cookie.SecurePolicy = forceSecureCookie ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
             cookie.SlidingExpiration = true;
             cookie.ExpireTimeSpan = TimeSpan.FromMinutes(defaultExpireMinutes);
+            cookie.Cookie.HttpOnly = cookieHttpOnly;
             cookie.Events = new CookieAuthenticationEvents
             {
                 OnValidatePrincipal = ctx =>
