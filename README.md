@@ -16,9 +16,11 @@ This library is used for maintaining state of permissions on the server and clai
   * Function to update claim using lambda expression
 
 # Usage
-* A single line must be added to the Startup.cs file in the ConfigureServices method 
+* The InitializeAuthenticationService method must be called in Startup.cs file in the ConfigureServices method 
   ``` csharp 
-  services.InitializeAuthenticationService<Security.PermissionHandler,Security.CustomUser>("/Auth/BeginAuth", "/Auth/WindowsAuth", "/Auth/NoAccess", "/Auth/Logout", false, 240);
+  var hostUrl = "https://hostingUrl.com";
+  var key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes("YoINeedAKey"));
+  services.InitializeAuthenticationService<Security.PermissionHandler,Security.CustomUser>("/Auth/BeginAuth", "/Auth/WindowsAuth", "/Auth/NoAccess", "/Auth/Logout", false, 240, key, hostUrl, false);
   ```
 * Additionally in the Startup.cs file app.UseAuthentication(); must be added to the Configure method
 * Two classes must be created to be used with this library
