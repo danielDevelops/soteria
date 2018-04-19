@@ -43,7 +43,8 @@ namespace Soteria.AuthenticationMiddleware
 
         private async Task<bool> AuthorizeAsync(ClaimsPrincipal user, List<string> permissions)
         {
-            var identity = user.Identities.SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName);
+            var identity = user.Identities.
+                SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName || t.AuthenticationType == $"{AuthManager.MiddleWareInstanceName}-jwt");
             if (identity == null || !identity.IsAuthenticated)
                 return false;
             var permissionManager = new PermissionManager(_permissionHandler);
