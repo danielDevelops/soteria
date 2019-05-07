@@ -90,10 +90,14 @@ namespace Soteria.AuthenticationMiddleware
                     if (identity != null && identity.IsAuthenticated)
                     {
                         ctx.Response.StatusCode = 403;
+                        await ctx.Response.WriteAsync("Unauthorized");
+                        return;
                     }
                     else
                     {
                         ctx.Response.StatusCode = 401;
+                        await ctx.Response.WriteAsync("Unauthenticated");
+                        return;
                     }
                 }
             };
