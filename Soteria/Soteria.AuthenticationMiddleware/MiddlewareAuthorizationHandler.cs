@@ -31,7 +31,6 @@ namespace Soteria.AuthenticationMiddleware
             }
             foreach (var permissionAttribute in attributes)
             {
-
                 if (permissionAttribute.PermissionList.Count > 0 
                     && !await AuthorizeAsync(context.User, permissionAttribute.PermissionList))
                 {
@@ -53,7 +52,6 @@ namespace Soteria.AuthenticationMiddleware
         }
         public override Task HandleAsync(AuthorizationHandlerContext context)
         {
-
             return base.HandleAsync(context);
         }
     }

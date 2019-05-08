@@ -86,21 +86,25 @@ namespace Soteria.AuthenticationMiddleware
             {
                 OnAuthenticationFailed = async ctx =>
                 {
-                    var identity = ctx.HttpContext.User?.Identities?.SingleOrDefault(t => t.AuthenticationType == $"{MiddleWareInstanceName}-jwt");
+                    var identity = ctx.HttpContext.User?.Identities?
+                        .SingleOrDefault(t => t.AuthenticationType == $"{MiddleWareInstanceName}-jwt");
                     if (identity != null && identity.IsAuthenticated)
                     {
                         ctx.Response.StatusCode = 403;
                         await ctx.Response.WriteAsync("Unauthorized");
                         return;
                     }
-                    else
-                    {
-                        ctx.Response.StatusCode = 401;
-                        await ctx.Response.WriteAsync("Unauthenticated");
-                        return;
-                    }
+                },
+                OnChallenge = async ctx =>
+                {
+                    ctx.HandleResponse();
+                    ctx.Response.StatusCode = 401;
+                    var message = ctx.ErrorDescription != null ? ctx.ErrorDescription : "Unauthenticated";
+                    await ctx.Response.WriteAsync(message);
+                    return;
                 }
             };
+            
             jwt.SecurityTokenValidators.Add(soteriaJwtValidator);
             jwt.TokenValidationParameters = jwtTokenParameters;
         }
@@ -174,7 +178,6 @@ namespace Soteria.AuthenticationMiddleware
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.FromMinutes(3),
                 AuthenticationType = authType
-
             };
         }
         private static string GetRequestBasePath(RedirectContext<CookieAuthenticationOptions> ctx)
