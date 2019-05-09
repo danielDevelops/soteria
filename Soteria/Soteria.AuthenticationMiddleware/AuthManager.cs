@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Server.IISIntegration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace Soteria.AuthenticationMiddleware
 {
@@ -59,18 +60,16 @@ namespace Soteria.AuthenticationMiddleware
                 options.DefaultAuthenticateScheme = $"{MiddleWareInstanceName}";
                 options.DefaultChallengeScheme = $"{MiddleWareInstanceName}";
                 options.DefaultScheme = $"{MiddleWareInstanceName}";
-                
+
             })
             .AddCookie(MiddleWareInstanceName, cookie =>
             {
                 SetCookieAuthenticationOptions(cookie, loginPath, windowsLoginPath, accessDeniedPath, logoutPath, forceSecureCookie, defaultExpireMinutes, cookieHttpOnly);
             })
-            .AddJwtBearer($"{MiddleWareInstanceName}-jwt", jwt =>
+            .AddScheme<JwtBearerOptions, SoteriaJwTHandler>($"{MiddleWareInstanceName}-jwt", null, jwt =>
             {
                 SetJWTBearerOptions(jwt, key, jwtTokenParameters, soteriaJwtValidator, forceSecureCookie);
-            });
-            
-                
+            });    
         }
 
         public static void InitiializeAuthenticationApp(this IApplicationBuilder app)
@@ -79,10 +78,10 @@ namespace Soteria.AuthenticationMiddleware
           
         }
 
-        private static void SetJWTBearerOptions(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions jwt, SymmetricSecurityKey key, TokenValidationParameters jwtTokenParameters, SoteriaJwtValidator soteriaJwtValidator, bool requireHttps)
+        private static void SetJWTBearerOptions(JwtBearerOptions jwt, SymmetricSecurityKey key, TokenValidationParameters jwtTokenParameters, SoteriaJwtValidator soteriaJwtValidator, bool requireHttps)
         {
             jwt.RequireHttpsMetadata = requireHttps;
-            jwt.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+            jwt.Events = new JwtBearerEvents
             {
                 OnAuthenticationFailed = async ctx =>
                 {
@@ -91,7 +90,7 @@ namespace Soteria.AuthenticationMiddleware
                     if (identity != null && identity.IsAuthenticated)
                     {
                         ctx.Response.StatusCode = 403;
-                        await ctx.Response.WriteAsync("Unauthorized");
+                        await ctx.Response.WriteAsync(ctx.Exception.Message);
                         return;
                     }
                 },

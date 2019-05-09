@@ -33,7 +33,6 @@ namespace Soteria.AuthenticationMiddleware
             var x = HandleRequirementAsync(context, requirement, attributes);
             return x;
         }
-
         protected abstract Task HandleRequirementAsync(AuthorizationHandlerContext context, TRequirement requirement, IEnumerable<TAttribute> attributes);
 
         private static IEnumerable<TAttribute> GetAttributes(MemberInfo memberInfo)

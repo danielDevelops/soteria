@@ -39,7 +39,7 @@ namespace Soteria.AuthenticationMiddleware
             }
             context.Succeed(requirement);
         }
-
+        
         private async Task<bool> AuthorizeAsync(ClaimsPrincipal user, List<string> permissions)
         {
             var identity = user.Identities.

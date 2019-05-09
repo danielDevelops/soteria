@@ -29,8 +29,6 @@ namespace Soteria.AuthenticationMiddleware
                 SetupPermissionList(value);
             }
         }
-
-
         public string AuthenticationSchemes
         {
             get
