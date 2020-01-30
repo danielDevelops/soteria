@@ -8,7 +8,7 @@ namespace Soteria.AuthenticationMiddleware
 {
     public interface IPermissionHandler
     {
-        List<string> GetPermission(string user);
+        Task<List<string>> GetPermission(string user);
         TimeSpan PermissionsTimeout { get; }
     }
 }

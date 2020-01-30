@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Soteria.AuthenticationMiddleware.UserInformation
 {
@@ -12,6 +13,6 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         bool ValidClaimInformation { get; }
         ClaimsIdentity Identity { get; }
         bool IsAuthenticated { get; }
-        bool IsInRole(string role);
+        Task<bool> IsInRole(string role);
     }
 }

@@ -12,10 +12,8 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         
         private readonly IHttpContextAccessor _context;
         public SoteriaUser<T> User { get; private set; }
-        public bool IsUserInRole(string role)
-        {
-            return User.IsInRole(role);
-        }
+        public async Task<bool> IsUserInRole(string role)
+            => await User.IsInRole(role);
         public UserService(IHttpContextAccessor context)
         {
             _context = context;

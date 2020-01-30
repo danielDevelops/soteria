@@ -16,17 +16,17 @@ namespace Soteria.AuthenticationMiddleware
         {
             _handler = handler;
         }
-        public List<string> GetPermission(string user)
+        public async Task<List<string>> GetPermission(string user)
         {
             var userPermission = new UserPermission();
             if (!_userPermissions.TryGetValue(user, out userPermission))
             {
-                var permissions = _handler.GetPermission(user);
+                var permissions = await _handler.GetPermission(user);
                 return ReplacePermissions(user, permissions);
             }
             if(_handler.PermissionsTimeout != null && (DateTime.Now - userPermission.Validated) > _handler.PermissionsTimeout)
             {
-                var permissions = _handler.GetPermission(user);
+                var permissions = await _handler.GetPermission(user);
                 return ReplacePermissions(user, permissions);
             }
             return userPermission.GetPermissions();

@@ -61,21 +61,21 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
 
         }
 
-        public bool IsInRole(string role)
+        public async Task<bool> IsInRole(string role)
         {
             if (Identity == null || !Identity.IsAuthenticated || string.IsNullOrWhiteSpace(role))
                 return false;
             var permissionHandler = (IPermissionHandler)_context.RequestServices.GetService(typeof(IPermissionHandler));
             var permissonManager = new PermissionManager(permissionHandler);
-            var permissions = permissonManager.GetPermission(UserName);
+            var permissions = await permissonManager.GetPermission(UserName);
             return permissions.Count(t => t.ToLower() == role.ToLower()) > 0;
 
         }
-        public List<string> GetPermissions()
+        public async Task<List<string>> GetPermissions()
         {
             var permissionHandler = (IPermissionHandler)_context.RequestServices.GetService(typeof(IPermissionHandler));
             var permissionManager = new PermissionManager(permissionHandler);
-            return permissionManager.GetPermission(UserName);
+            return await permissionManager.GetPermission(UserName);
         }
         public SoteriaUser(ClaimsPrincipal user, HttpContext context)
         {
