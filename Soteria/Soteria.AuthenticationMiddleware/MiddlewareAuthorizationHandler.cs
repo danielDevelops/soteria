@@ -47,7 +47,7 @@ namespace Soteria.AuthenticationMiddleware
             if (identity == null || !identity.IsAuthenticated)
                 return false;
             var permissionManager = new PermissionManager(_permissionHandler);
-            var userPermissions = await Task.Run(() => { return permissionManager.GetPermission(identity.Name); });
+            var userPermissions = await permissionManager.GetPermission(identity.Name);
             return userPermissions.Intersect(permissions).Count() > 0;
         }
         public override Task HandleAsync(AuthorizationHandlerContext context)
