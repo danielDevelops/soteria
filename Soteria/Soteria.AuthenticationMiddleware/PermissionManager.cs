@@ -11,22 +11,22 @@ namespace Soteria.AuthenticationMiddleware
     internal class PermissionManager
     {
         static readonly ConcurrentDictionary<string, UserPermission> _userPermissions = new ConcurrentDictionary<string, UserPermission>();
-        IPermissionHandler _handler;
+        private readonly IPermissionHandler _handler;
         public PermissionManager(IPermissionHandler handler)
         {
             _handler = handler;
         }
-        public async Task<List<string>> GetPermission(string user)
+        public async Task<List<string>> GetPermissionAsync(string user)
         {
             var userPermission = new UserPermission();
             if (!_userPermissions.TryGetValue(user, out userPermission))
             {
-                var permissions = await _handler.GetPermission(user);
+                var permissions = await _handler.GetPermissionAsync(user);
                 return ReplacePermissions(user, permissions);
             }
             if(_handler.PermissionsTimeout != null && (DateTime.Now - userPermission.Validated) > _handler.PermissionsTimeout)
             {
-                var permissions = await _handler.GetPermission(user);
+                var permissions = await _handler.GetPermissionAsync(user);
                 return ReplacePermissions(user, permissions);
             }
             return userPermission.GetPermissions();

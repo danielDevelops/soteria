@@ -11,18 +11,19 @@ using System.Collections;
 
 namespace Soteria.AuthenticationMiddleware.UserInformation
 {
+    public enum AuthenticationMethod
+    {
+        NotSet,
+        Windows,
+        Forms
+    }
     public class SoteriaUser<T> : ISoteriaUserValidation, ISoteriaUser<T> where T : class, new()
     {
         public T UserProperties { get; private set; }
-        public enum AuthenticationMethod
-        {
-            NotSet,
-            Windows,
-            Forms
-        }
-        HttpContext _context;
+        HttpContext context;
         public string GenericTypeName { get; private set; }
         public string UserName { get; private set; }
+        public Guid SessionGuid { get; private set; }
         public bool ValidClaimInformation { get; private set; }
         public ClaimsIdentity Identity { get; private set; }
         public bool IsAuthenticated { get; private set; }
@@ -56,8 +57,8 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
             Identity.AddClaim(new Claim(fieldName, serialziedValue));
            
 
-            Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignOutAsync(_context, Identity.AuthenticationType);
-            Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync(_context, new ClaimsPrincipal(Identity));
+            Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignOutAsync(context, Identity.AuthenticationType);
+            Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync(context, new ClaimsPrincipal(Identity));
 
         }
 
@@ -65,30 +66,32 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         {
             if (Identity == null || !Identity.IsAuthenticated || string.IsNullOrWhiteSpace(role))
                 return false;
-            var permissionHandler = (IPermissionHandler)_context.RequestServices.GetService(typeof(IPermissionHandler));
+            var permissionHandler = (IPermissionHandler)context.RequestServices.GetService(typeof(IPermissionHandler));
             var permissonManager = new PermissionManager(permissionHandler);
-            var permissions = await permissonManager.GetPermission(UserName);
+            var permissions = await permissonManager.GetPermissionAsync(UserName);
             return permissions.Count(t => t.ToLower() == role.ToLower()) > 0;
 
         }
         public async Task<List<string>> GetPermissions()
         {
-            var permissionHandler = (IPermissionHandler)_context.RequestServices.GetService(typeof(IPermissionHandler));
+            var permissionHandler = (IPermissionHandler)context.RequestServices.GetService(typeof(IPermissionHandler));
             var permissionManager = new PermissionManager(permissionHandler);
-            return await permissionManager.GetPermission(UserName);
+            return await permissionManager.GetPermissionAsync(UserName);
         }
-        public SoteriaUser(ClaimsPrincipal user, HttpContext context)
+        
+        
+        public SoteriaUser(ClaimsPrincipal user, HttpContext context, bool isAuthenticated)
         {
-            _context = context;
+            this.context = context;
             var identity = user.Identities.SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName || t.AuthenticationType == $"{AuthManager.MiddleWareInstanceName}-jwt");
-            Init(identity);
+            Init(identity, isAuthenticated);
         }
-        public SoteriaUser(ClaimsIdentity identity, HttpContext context)
+        public SoteriaUser(ClaimsIdentity identity, HttpContext context, bool isAuthenticated)
         {
-            _context = context;
-            Init(identity);
+            this.context = context;
+            Init(identity, isAuthenticated);
         }
-        private void Init(ClaimsIdentity identity)
+        private void Init(ClaimsIdentity identity, bool isAuthenticated)
         {
             Identity = identity;
             if (identity == null || identity.FindFirst(nameof(AuthenticatedBy)) == null || identity.FindFirst(nameof(GenericTypeName)) == null)
@@ -102,7 +105,7 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
                 throw new FormatException("The underlying security ticket doesn't match the generic type passed in for this authentication ticket.");
             ClaimID = identity.Name;
             UserName = identity.FindFirst(ClaimTypes.Name) != null ? identity.FindFirst(ClaimTypes.Name).Value : "";
-
+            SessionGuid = identity.FindFirst(nameof(SessionGuid)) != null ? new Guid(identity.FindFirst(nameof(SessionGuid)).Value) : Guid.Empty;
             var props = new T();
             foreach (var item in (typeof(T)).GetProperties())
             {
@@ -117,7 +120,9 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
 
             AuthenticatedBy = (AuthenticationMethod)Enum.Parse(typeof(AuthenticationMethod), identity.FindFirst(nameof(AuthenticatedBy)).Value, true);
             ValidClaimInformation = !string.IsNullOrWhiteSpace(UserName);
-            IsAuthenticated = ValidClaimInformation ? identity.IsAuthenticated : false;
+            IsAuthenticated = ValidClaimInformation
+                ? identity.IsAuthenticated && isAuthenticated
+                : false;
         }
     }
 }

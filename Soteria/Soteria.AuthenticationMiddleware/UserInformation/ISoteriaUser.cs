@@ -12,6 +12,7 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
     {
         T UserProperties { get; }
         string UserName { get; }
+        Guid SessionGuid { get; }
         void ChangeFieldValue<TValue>(Expression<Func<T, TValue>> field, TValue value);
     }
 }

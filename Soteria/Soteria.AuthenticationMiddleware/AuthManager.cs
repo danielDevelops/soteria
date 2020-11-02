@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Server.IISIntegration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Security.Cryptography.Xml;
 
 namespace Soteria.AuthenticationMiddleware
 {
@@ -26,7 +27,8 @@ namespace Soteria.AuthenticationMiddleware
         public static readonly string MiddleWareInstanceName = "Soteria";
         private static SymmetricSecurityKey _key;
 
-        public static void InitializeAuthenticationService<TPermissionHandler, GenericUser>(this IServiceCollection serviceCollection, 
+        public static void InitializeAuthenticationService<TPermissionHandler, TSessionHandler, GenericUser>(
+            this IServiceCollection serviceCollection, 
             string loginPath, 
             string windowsLoginPath, 
             string accessDeniedPath, 
@@ -39,12 +41,15 @@ namespace Soteria.AuthenticationMiddleware
             ) 
             where GenericUser: class, new()
             where TPermissionHandler : class, IPermissionHandler
+            where TSessionHandler : class, ISessionHandler
         {
             _key = key;
             serviceCollection.AddScoped<UserService<GenericUser>>();
             serviceCollection.AddTransient<IPermissionHandler, TPermissionHandler>();
+            serviceCollection.AddTransient<ISessionHandler, TSessionHandler>();
             serviceCollection.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             serviceCollection.AddSingleton<IAuthorizationHandler, MiddlewareAuthorizationHandler>();
+            //serviceCollection.AddAuthentication(IISDefaults.AuthenticationScheme);
             serviceCollection.AddAuthorization(options =>
             {
                 options.AddPolicy(MiddleWareInstanceName, policyBuilder =>
@@ -78,15 +83,18 @@ namespace Soteria.AuthenticationMiddleware
           
         }
 
-        private static void SetJWTBearerOptions(JwtBearerOptions jwt, SymmetricSecurityKey key, TokenValidationParameters jwtTokenParameters, SoteriaJwtValidator soteriaJwtValidator, bool requireHttps)
+        private static void SetJWTBearerOptions(JwtBearerOptions jwt, 
+            SymmetricSecurityKey key, 
+            TokenValidationParameters jwtTokenParameters, 
+            SoteriaJwtValidator soteriaJwtValidator, 
+            bool requireHttps)
         {
             jwt.RequireHttpsMetadata = requireHttps;
             jwt.Events = new JwtBearerEvents
             {
                 OnAuthenticationFailed = async ctx =>
                 {
-                    var identity = ctx.HttpContext.User?.Identities?
-                        .SingleOrDefault(t => t.AuthenticationType == $"{MiddleWareInstanceName}-jwt");
+                    var identity = ctx.HttpContext.User?.GetSoteriaIdentity();
                     if (identity != null && identity.IsAuthenticated)
                     {
                         ctx.Response.StatusCode = 403;
@@ -108,7 +116,14 @@ namespace Soteria.AuthenticationMiddleware
             jwt.TokenValidationParameters = jwtTokenParameters;
         }
 
-        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, string loginPath, string windowsLoginPath, string accessDeniedPath, string logoutPath, bool forceSecureCookie, int defaultExpireMinutes, bool cookieHttpOnly)
+        private static void SetCookieAuthenticationOptions(CookieAuthenticationOptions cookie, 
+            string loginPath, 
+            string windowsLoginPath, 
+            string accessDeniedPath, 
+            string logoutPath, 
+            bool forceSecureCookie, 
+            int defaultExpireMinutes, 
+            bool cookieHttpOnly)
         {
             cookie.LoginPath = new PathString(loginPath);
             cookie.LogoutPath = new PathString(logoutPath);
@@ -143,7 +158,11 @@ namespace Soteria.AuthenticationMiddleware
                     if (ctx.Request.Query.Count > 0)
                         queryString = "?" + string.Join("&", ctx.Request.Query.Select(t => $"{t.Key}={t.Value}"));
                     var redirectTo = System.Net.WebUtility.UrlEncode($"{requestBase}{ctx.Request.Path}{queryString}");
-                    if (ctx.Request.Path == new PathString(windowsLoginPath))
+
+                    var shouldReturn = ctx.Request.Path.HasValue &&
+                        (ctx.Request.Path.Value.ToLower().EndsWith(windowsLoginPath.ToLower())
+                        || ctx.Request.Path.Value.ToLower().EndsWith($"{windowsLoginPath}test".ToLower()));
+                    if (shouldReturn)
                         return;
                     ctx.Response.Redirect($"{requestBase}{ctx.Options.LoginPath}?ReturnUrl={redirectTo}");
                     
@@ -164,7 +183,10 @@ namespace Soteria.AuthenticationMiddleware
             };
         }
 
-        private static TokenValidationParameters CreateTokenParameters(SymmetricSecurityKey key, string issuer, string audience, string authType)
+        private static TokenValidationParameters CreateTokenParameters(SymmetricSecurityKey key, 
+            string issuer, 
+            string audience, 
+            string authType)
         {
             return new TokenValidationParameters
             {
@@ -193,9 +215,10 @@ namespace Soteria.AuthenticationMiddleware
             return path.TrimEnd('/');
         }
 
-        public static async Task<ClaimsIdentity> UserSignOn<T>(this HttpContext context, 
+        public static async Task<ClaimsIdentity> UserSignOnAsync<T>(this HttpContext context, 
             string userName, 
-            SoteriaUser<T>.AuthenticationMethod authenticateddBy, 
+            Guid sessionGuid,
+            AuthenticationMethod authenticateddBy, 
             T genericUser,
             bool isPersistant) where T : class, new()
         {
@@ -204,6 +227,7 @@ namespace Soteria.AuthenticationMiddleware
             {
                 new Claim(ClaimTypes.Name, userName),
                 new Claim(ClaimTypes.NameIdentifier, userName.EnsureNullIsEmpty()),
+                new Claim(nameof(SoteriaUser<T>.SessionGuid), sessionGuid.ToString()),
                 new Claim(nameof(SoteriaUser<T>.UserName), userName.EnsureNullIsEmpty()),
                 new Claim(nameof(SoteriaUser<T>.AuthenticatedBy), authenticateddBy.ToString()),
                 new Claim(nameof(SoteriaUser<T>.IsCookiePersistant), isPersistant.ToString()),
@@ -220,32 +244,41 @@ namespace Soteria.AuthenticationMiddleware
             var expireIn = TimeSpan.FromHours(8);
             if (isPersistant)
                 expireIn = TimeSpan.FromDays(30);
-            await AuthenticationHttpContextExtensions.SignInAsync(context,MiddleWareInstanceName,
-                new ClaimsPrincipal(claim),
-                new Microsoft.AspNetCore.Authentication.AuthenticationProperties { IsPersistent = isPersistant, ExpiresUtc = DateTime.UtcNow.Add(expireIn), AllowRefresh = true });
+
+            var authProperties = new Microsoft.AspNetCore.Authentication.AuthenticationProperties { IsPersistent = isPersistant, ExpiresUtc = DateTime.UtcNow.Add(expireIn), AllowRefresh = true };
+            await context.SignInAsync(MiddleWareInstanceName, new ClaimsPrincipal(claim), authProperties).ConfigureAwait(false);
+            context.GetSessionManager().AddNewSession(sessionGuid);
             return claim;
             
         }
-        public static async Task UserSignOut(this HttpContext context)
+        public static async Task UserSignOutAsync(this HttpContext context, ISessionHandler sessionHandler)
         {
             var customUser = context.User.Identities.SingleOrDefault(t => t.AuthenticationType == MiddleWareInstanceName);
             if (customUser?.Name != null)
                 PermissionManager.ClearPermissions(customUser.Name);
+            var customSessionGuid = customUser?.FindFirst("SessionGuid")?.Value;
+            if (!string.IsNullOrWhiteSpace(customSessionGuid))
+            {
+                var customUserGuid = new Guid(customSessionGuid);
+                SessionManager.RemoveGuid(customUserGuid);
+                await sessionHandler.DeleteSessionAsync(customUserGuid);
+            }
             await AuthenticationHttpContextExtensions.SignOutAsync(context, MiddleWareInstanceName);
             
         }
-        public static async Task<string> JWTUserSignOn<T>(this HttpContext context,
+        public static async Task<string> JWTUserSignOnAsync<T>(this HttpContext context,
             string userName,
-            SoteriaUser<T>.AuthenticationMethod authenticateddBy,
+            Guid sessionGuid,
+            AuthenticationMethod authenticateddBy,
             T genericUser,
             int expireInMinutes,
-            string hostDomain
-            )where T: class, new()
+            string hostDomain) where T: class, new()
         {
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, userName),
                 new Claim(ClaimTypes.NameIdentifier, userName.EnsureNullIsEmpty()),
+                new Claim(nameof(SoteriaUser<T>.SessionGuid), sessionGuid.ToString()),
                 new Claim(nameof(SoteriaUser<T>.UserName), userName.EnsureNullIsEmpty()),
                 new Claim(nameof(SoteriaUser<T>.AuthenticatedBy), authenticateddBy.ToString()),
                 new Claim(nameof(SoteriaUser<T>.IsCookiePersistant), false.ToString()),

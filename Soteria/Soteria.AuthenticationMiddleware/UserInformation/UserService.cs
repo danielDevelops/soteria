@@ -9,15 +9,24 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
 {
     public class UserService<T> where T : class, new()
     {
-        
-        private readonly IHttpContextAccessor _context;
-        public SoteriaUser<T> User { get; private set; }
+        private readonly HttpContext context;
+        private readonly SessionManager sessionManager;
+
+        public async Task<SoteriaUser<T>> GetUserAsync()
+            => new SoteriaUser<T>(context.User, 
+                context, 
+                await sessionManager.IsSessionActiveAsync(context));
         public async Task<bool> IsUserInRole(string role)
-            => await User.IsInRole(role);
-        public UserService(IHttpContextAccessor context)
+            => await (await GetUserAsync()).IsInRole(role);
+        public UserService(IHttpContextAccessor context, ISessionHandler sessionHandler)
         {
-            _context = context;
-            User = new SoteriaUser<T>(_context.HttpContext.User, _context.HttpContext);
+            this.context = context.HttpContext;
+            this.sessionManager =  new SessionManager(sessionHandler);
+        }
+        public UserService(HttpContext context, ISessionHandler sessionHandler)
+        {
+            this.context = context;
+            this.sessionManager = new SessionManager(sessionHandler);
         }
     }
 }
