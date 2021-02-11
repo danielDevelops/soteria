@@ -34,14 +34,14 @@ namespace Soteria.AuthenticationMiddleware
             {
                 return;
             }
-            if (!await SessionIsActiveAsync(context.User))
+            if (!await SessionIsActiveAsync(middleWareAuth))
             {
                 return;
             }
             foreach (var permissionAttribute in attributes)
             {
                 if (permissionAttribute.PermissionList.Count > 0 
-                    && !await AuthorizeAsync(context.User, permissionAttribute.PermissionList))
+                    && !await AuthorizeAsync(middleWareAuth, permissionAttribute.PermissionList))
                 {
                     return;
                 }
@@ -49,19 +49,17 @@ namespace Soteria.AuthenticationMiddleware
             context.Succeed(requirement);
         }
         
-        private async Task<bool> SessionIsActiveAsync(ClaimsPrincipal user)
+        private async Task<bool> SessionIsActiveAsync(ClaimsIdentity identity)
         {
             if (!sessionHandler.EnableSessionValidation)
                 return true;
             var sessionManager = new SessionManager(sessionHandler);
-            var val = user.FindFirst("SessionGuid") != null ? new Guid(user.FindFirst("SessionGuid").Value) : Guid.Empty;
+            var val = !string.IsNullOrWhiteSpace(identity.FindFirst("SessionGuid")?.Value) ? new Guid(identity.FindFirst("SessionGuid").Value) : Guid.Empty;
             return await sessionManager.IsSessionActiveAsync(val);
         }
 
-        private async Task<bool> AuthorizeAsync(ClaimsPrincipal user, List<string> permissions)
+        private async Task<bool> AuthorizeAsync(ClaimsIdentity identity, List<string> permissions)
         {
-            var identity = user.Identities.
-                SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName || t.AuthenticationType == $"{AuthManager.MiddleWareInstanceName}-jwt");
             if (identity == null || !identity.IsAuthenticated)
                 return false;
             var permissionManager = new PermissionManager(permissionHandler);

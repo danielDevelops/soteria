@@ -10,9 +10,9 @@
 		<PackageProjectUrl>https://github.com/danielDevelops/soteria</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/danielDevelops/soteria/tree/master/Soteria</RepositoryUrl>
 		<RepositoryType>GIT</RepositoryType>
-		<Version>5.1.0</Version>
-		<AssemblyVersion>5.1.0.0</AssemblyVersion>
-		<FileVersion>5.1.0.0</FileVersion>
+		<Version>5.1.1</Version>
+		<AssemblyVersion>5.1.1.0</AssemblyVersion>
+		<FileVersion>5.1.1.0</FileVersion>
 		<PackageReleaseNotes>This adds Session Guid verification.</PackageReleaseNotes>
 	</PropertyGroup>
 	<ItemGroup>
