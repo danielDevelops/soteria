@@ -12,17 +12,20 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         private readonly HttpContext context;
         private readonly SessionManager sessionManager;
 
-        public async Task<SoteriaUser<T>> GetUserAsync()
+        public SoteriaUser<T> GetUser()
             => new SoteriaUser<T>(context.User, 
                 context, 
-                await sessionManager.IsSessionActiveAsync(context));
+                sessionManager.sessionHandler);
+
         public async Task<bool> IsUserInRole(string role)
-            => await (await GetUserAsync()).IsInRole(role);
+            => await (GetUser()).IsInRoleAsync(role);
+
         public UserService(IHttpContextAccessor context, ISessionHandler sessionHandler)
         {
             this.context = context.HttpContext;
             this.sessionManager =  new SessionManager(sessionHandler);
         }
+
         public UserService(HttpContext context, ISessionHandler sessionHandler)
         {
             this.context = context;

@@ -9,7 +9,7 @@ using System.IdentityModel.Tokens.Jwt;
 
 namespace Soteria.AuthenticationMiddleware
 {
-    public class SoteriaJwtValidator : ISecurityTokenValidator
+    internal class SoteriaJwtValidator : ISecurityTokenValidator
     {
         string _algorithm;
         TokenValidationParameters _validationParameters;
@@ -61,10 +61,14 @@ namespace Soteria.AuthenticationMiddleware
             }
             catch (SecurityTokenValidationException x)
             {
+                if (System.Diagnostics.Debugger.IsAttached)
+                    System.Diagnostics.Debug.WriteLine(x);
                 return null;
             }
             catch (ArgumentException x)
             {
+                if (System.Diagnostics.Debugger.IsAttached)
+                    System.Diagnostics.Debug.WriteLine(x);
                 return null;
             }
             return principal;

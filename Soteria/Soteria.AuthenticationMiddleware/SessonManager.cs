@@ -11,7 +11,7 @@ namespace Soteria.AuthenticationMiddleware
     internal class SessionManager
     {
         static readonly ConcurrentDictionary<Guid, DateTime> sessions = new ConcurrentDictionary<Guid, DateTime>();
-        private readonly ISessionHandler sessionHandler;
+        public readonly ISessionHandler sessionHandler;
 
         public SessionManager(ISessionHandler sessionHandler)
         {

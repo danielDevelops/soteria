@@ -5,26 +5,20 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
-using System.Security.Principal;
 using Soteria.AuthenticationMiddleware.UserInformation;
-using Microsoft.AspNetCore.Http.Authentication;
 using System.Reflection;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Server.IISIntegration;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using System.Security.Cryptography.Xml;
 
 namespace Soteria.AuthenticationMiddleware
 {
     public static class AuthManager
     {
-        public static readonly string MiddleWareInstanceName = "Soteria";
+        public const string MiddleWareInstanceName = "Soteria";
         private static SymmetricSecurityKey _key;
 
         public static void InitializeAuthenticationService<TPermissionHandler, TSessionHandler, GenericUser>(
@@ -45,11 +39,10 @@ namespace Soteria.AuthenticationMiddleware
         {
             _key = key;
             serviceCollection.AddScoped<UserService<GenericUser>>();
-            serviceCollection.AddTransient<IPermissionHandler, TPermissionHandler>();
-            serviceCollection.AddTransient<ISessionHandler, TSessionHandler>();
-            serviceCollection.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-            serviceCollection.AddSingleton<IAuthorizationHandler, MiddlewareAuthorizationHandler>();
-            //serviceCollection.AddAuthentication(IISDefaults.AuthenticationScheme);
+            serviceCollection.AddScoped<IPermissionHandler, TPermissionHandler>();
+            serviceCollection.AddScoped<ISessionHandler, TSessionHandler>();
+            serviceCollection.AddTransient<IHttpContextAccessor, HttpContextAccessor>();
+            serviceCollection.AddTransient<IAuthorizationHandler, MiddlewareAuthorizationHandler>();
             serviceCollection.AddAuthorization(options =>
             {
                 options.AddPolicy(MiddleWareInstanceName, policyBuilder =>
@@ -77,10 +70,14 @@ namespace Soteria.AuthenticationMiddleware
             });    
         }
 
-        public static void InitiializeAuthenticationApp(this IApplicationBuilder app)
+        public static void InitializeAppAuthentication(this IApplicationBuilder app)
         {
             app.UseAuthentication();
-          
+        }
+
+        public static void InitializeAppAuthorization(this IApplicationBuilder app)
+        {
+            app.UseAuthorization();
         }
 
         private static void SetJWTBearerOptions(JwtBearerOptions jwt, 
@@ -109,6 +106,16 @@ namespace Soteria.AuthenticationMiddleware
                     var message = ctx.ErrorDescription != null ? ctx.ErrorDescription : "Unauthenticated";
                     await ctx.Response.WriteAsync(message);
                     return;
+                },
+                OnForbidden = async ctx =>
+                {
+                    var identity = ctx.HttpContext.User?.GetSoteriaIdentity();
+                    if (identity != null && identity.IsAuthenticated)
+                    {
+                        ctx.Response.StatusCode = 403;
+                        await ctx.Response.WriteAsync("Forbidden");
+                        return;
+                    }
                 }
             };
             
@@ -290,9 +297,9 @@ namespace Soteria.AuthenticationMiddleware
                 claims.Add(new Claim(item.Name, Newtonsoft.Json.JsonConvert.SerializeObject(val)));
             }
 
-            var claim = new ClaimsIdentity(claims, MiddleWareInstanceName);
+            var _ = new ClaimsIdentity(claims, MiddleWareInstanceName);
             var soteriaJwtDataFormat = new SoteriaJwtDataFormat(SecurityAlgorithms.HmacSha256, CreateTokenParameters(_key, hostDomain, hostDomain, $"{MiddleWareInstanceName}-jwt"));
-            return soteriaJwtDataFormat.CreateJWT(claims, DateTime.Now, DateTime.Now.AddMinutes(expireInMinutes));
+            return await Task.FromResult(soteriaJwtDataFormat.CreateJWT(claims, DateTime.Now, DateTime.Now.AddMinutes(expireInMinutes)));
 
         }
         public static List<string> GetAllAssignedPermissions(Assembly assembly)

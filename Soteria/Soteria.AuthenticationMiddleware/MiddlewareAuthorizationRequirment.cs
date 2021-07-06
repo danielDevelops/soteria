@@ -9,6 +9,5 @@ namespace Soteria.AuthenticationMiddleware
 {
     internal class MiddlewareAuthorizationRequirment : IAuthorizationRequirement
     {
-        
     }
 }

@@ -22,7 +22,9 @@ namespace Soteria.AuthenticationMiddleware
             this.permissionHandler = permissionHandler;
             this.sessionHandler = sessionHandler;
         }
-        protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, MiddlewareAuthorizationRequirment requirement, IEnumerable<SoteriaPermissionCheck> attributes)
+        protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, 
+            MiddlewareAuthorizationRequirment requirement, 
+            IEnumerable<SoteriaPermissionCheck> attributes)
         {
             var middleWareAuth = context.User.Identities
                 .SingleOrDefault(t => t.AuthenticationType == AuthManager.MiddleWareInstanceName || t.AuthenticationType == $"{AuthManager.MiddleWareInstanceName}-jwt");
@@ -40,7 +42,7 @@ namespace Soteria.AuthenticationMiddleware
             }
             foreach (var permissionAttribute in attributes)
             {
-                if (permissionAttribute.PermissionList.Count > 0 
+                if (permissionAttribute.PermissionList.Any()
                     && !await AuthorizeAsync(middleWareAuth, permissionAttribute.PermissionList))
                 {
                     return;
@@ -64,7 +66,7 @@ namespace Soteria.AuthenticationMiddleware
                 return false;
             var permissionManager = new PermissionManager(permissionHandler);
             var userPermissions = await permissionManager.GetPermissionAsync(identity.Name);
-            return userPermissions.Intersect(permissions).Count() > 0;
+            return userPermissions.Intersect(permissions).Any();
         }
         public override Task HandleAsync(AuthorizationHandlerContext context)
         {

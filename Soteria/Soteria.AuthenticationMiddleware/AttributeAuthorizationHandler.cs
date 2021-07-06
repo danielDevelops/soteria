@@ -7,12 +7,13 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 
 namespace Soteria.AuthenticationMiddleware
 {
     internal abstract class AttributeAuthorizationHandler<TRequirement, TAttribute> : AuthorizationHandler<TRequirement>
        where TRequirement : IAuthorizationRequirement
-       where TAttribute : Attribute
+       where TAttribute : SoteriaPermissionCheck
     {
         public AttributeAuthorizationHandler() : base()
         {
@@ -22,6 +23,15 @@ namespace Soteria.AuthenticationMiddleware
         {
             var attributes = new List<TAttribute>();
 
+            var httpContext = context.Resource as HttpContext;
+            var endpoint = httpContext.GetEndpoint();
+           
+            if (endpoint.Metadata.OfType<SoteriaPermissionCheck>().Any())
+            {
+                attributes.AddRange(endpoint.Metadata.OfType<TAttribute>());
+
+                return HandleRequirementAsync(context, requirement, attributes);
+            }
 
             var action = (context.Resource as AuthorizationFilterContext)?.ActionDescriptor as ControllerActionDescriptor;
             if (action != null)
@@ -29,9 +39,7 @@ namespace Soteria.AuthenticationMiddleware
                 attributes.AddRange(GetAttributes(action.ControllerTypeInfo.UnderlyingSystemType));
                 attributes.AddRange(GetAttributes(action.MethodInfo));
             }
-
-            var x = HandleRequirementAsync(context, requirement, attributes);
-            return x;
+            return HandleRequirementAsync(context, requirement, attributes);
         }
         protected abstract Task HandleRequirementAsync(AuthorizationHandlerContext context, TRequirement requirement, IEnumerable<TAttribute> attributes);
 

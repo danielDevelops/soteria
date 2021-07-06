@@ -12,7 +12,7 @@ namespace Soteria.AuthenticationMiddleware.UserInformation
         string ClaimID { get; }
         bool ValidClaimInformation { get; }
         ClaimsIdentity Identity { get; }
-        bool IsAuthenticated { get; }
-        Task<bool> IsInRole(string role);
+        Task<bool> IsAuthenticatedAsync();
+        Task<bool> IsInRoleAsync(string role);
     }
 }

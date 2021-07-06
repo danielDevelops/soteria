@@ -24,7 +24,7 @@ namespace Soteria.AuthenticationMiddleware
                 var permissions = await _handler.GetPermissionAsync(user);
                 return ReplacePermissions(user, permissions);
             }
-            if(_handler.PermissionsTimeout != null && (DateTime.Now - userPermission.Validated) > _handler.PermissionsTimeout)
+            if((DateTime.Now - userPermission.Validated) > _handler.PermissionsTimeout)
             {
                 var permissions = await _handler.GetPermissionAsync(user);
                 return ReplacePermissions(user, permissions);

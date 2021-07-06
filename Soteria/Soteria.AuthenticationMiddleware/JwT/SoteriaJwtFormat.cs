@@ -2,13 +2,13 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Http.Authentication;
+//using Microsoft.AspNetCore.Http.Authentication;
 using Microsoft.IdentityModel.Tokens;
 using System.Collections.Generic;
 
 namespace Soteria.AuthenticationMiddleware
 {
-    public class SoteriaJwtDataFormat : ISecureDataFormat<AuthenticationTicket>
+    internal class SoteriaJwtDataFormat : ISecureDataFormat<AuthenticationTicket>
     {
         private readonly string _algorithm;
         private readonly TokenValidationParameters _validationParameters;
@@ -47,10 +47,14 @@ namespace Soteria.AuthenticationMiddleware
             }
             catch (SecurityTokenValidationException x)
             {
+                if (System.Diagnostics.Debugger.IsAttached)
+                    System.Diagnostics.Debug.WriteLine(x);
                 return null;
             }
             catch (ArgumentException x)
             {
+                if (System.Diagnostics.Debugger.IsAttached)
+                    System.Diagnostics.Debug.WriteLine(x);
                 return null;
             }
 

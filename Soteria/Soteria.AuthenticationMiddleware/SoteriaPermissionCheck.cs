@@ -16,18 +16,16 @@ namespace Soteria.AuthenticationMiddleware
             JWT
         }
         internal List<string> PermissionList { get; private set; }
-        public string Policy { get { return AuthManager.MiddleWareInstanceName; } set => throw new NotImplementedException($"You cannot set the policy for the {nameof(SoteriaPermissionCheck)} Attribute!!!"); }
+        public string Policy
+        {
+            get => AuthManager.MiddleWareInstanceName;
+            set => throw new NotImplementedException($"You cannot set the policy for the {nameof(SoteriaPermissionCheck)} Attribute!!!");
+        }
 
         public string Roles
         {
-            get
-            {
-                return null;
-            }
-            set
-            {
-                SetupPermissionList(value);
-            }
+            get => null;
+            set => SetupPermissionList(value);
         }
         public string AuthenticationSchemes
         {
@@ -44,18 +42,24 @@ namespace Soteria.AuthenticationMiddleware
                 }
                 
             }
-            set => throw new NotImplementedException($"Schemes must be set through the contstructor"); }
-        public SchemeType Scheme { get; set; }
+            set => throw new NotImplementedException($"Schemes must be set through the contstructor");
+        }
+        public SchemeType Scheme { get; }
+
         public SoteriaPermissionCheck() 
         {
             PermissionList = new List<string>();
         }
-        public SoteriaPermissionCheck(string permission) : this()
+
+        public SoteriaPermissionCheck(string permission)
+            : this()
         {
             Scheme = SchemeType.Cookie;
             SetupPermissionList(permission);
         }
-        public SoteriaPermissionCheck(string permissions, SchemeType scheme) : this()
+
+        public SoteriaPermissionCheck(string permissions, SchemeType scheme)
+            : this()
         {
             Scheme = scheme;
             SetupPermissionList(permissions);

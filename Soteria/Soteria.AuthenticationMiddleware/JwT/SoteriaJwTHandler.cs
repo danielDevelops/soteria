@@ -18,8 +18,8 @@ namespace Soteria.AuthenticationMiddleware
 {
     internal sealed class SoteriaJwTHandler : JwtBearerHandler
     {
-        public SoteriaJwTHandler(IOptionsMonitor<JwtBearerOptions> options, ILoggerFactory logger, UrlEncoder encoder, IDataProtectionProvider dataProtection, ISystemClock clock)
-            : base(options, logger, encoder, dataProtection, clock)
+        public SoteriaJwTHandler(IOptionsMonitor<JwtBearerOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock)
+            : base(options, logger, encoder, clock)
         {
         }
         protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
