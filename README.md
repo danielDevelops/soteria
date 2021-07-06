@@ -25,7 +25,7 @@ This library is used for maintaining state of permissions on the server and clai
 * Additionally two lines must be added to the Configure method within Startup.cs file.
   * `app.InitializeAppAuthentication();` must be added to the beginning of the Configure method
   * `app.InitializeAppAuthorization();` must be added between the lines `app.UseRouting();` and `app.UseEndpoints();`
-* Two classes must be created to be used with this library
+* Three classes must be created to be used with this library
   1. A library that implements IPermissionHandler from the library
       * this library is used for setting the timeout of the permissions for a user and to tell the library how to get the permissions for users.
         ``` csharp
@@ -52,6 +52,7 @@ This library is used for maintaining state of permissions on the server and clai
         ```
   2. A class must be created to store the data needed in the claims such as FullName or Email address
       * The only requirment for this class is that it implements an empty constructor 
+  3. A class must be created that implements `ISessionHandler`.  If you do not wish to use the Session validation, you can set property on the class `public bool EnableSessionValidation => false;`
 
 * One of the primary design considerations for this library is that each function of the application such as read, update, create, or delete is assigned an individual permission.  To that end, permissions is the primary method in which the solution was designed.  
   * To use the library for authorization and to get the data from the claims, the attribute [SoteriaPermissionCheck] should be added.  
