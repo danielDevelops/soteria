@@ -22,7 +22,9 @@ This library is used for maintaining state of permissions on the server and clai
   var key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes("YoINeedAKey"));
   services.InitializeAuthenticationService<Security.PermissionHandler,Security.CustomUser>("/Auth/BeginAuth", "/Auth/WindowsAuth", "/Auth/NoAccess", "/Auth/Logout", false, 240, key, hostUrl, false);
   ```
-* Additionally in the Startup.cs file app.UseAuthentication(); must be added to the Configure method
+* Additionally two lines must be added to the Configure method within Startup.cs file.
+  * `app.InitializeAppAuthentication();` must be added to the beginning of the Configure method
+  * `app.InitializeAppAuthorization();` must be added between the lines `app.UseRouting();` and `app.UseEndpoints();`
 * Two classes must be created to be used with this library
   1. A library that implements IPermissionHandler from the library
       * this library is used for setting the timeout of the permissions for a user and to tell the library how to get the permissions for users.
