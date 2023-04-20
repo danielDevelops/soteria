@@ -13,6 +13,7 @@
 		<Version>6.0</Version>
 		<AssemblyVersion>6.0.0.0</AssemblyVersion>
 		<FileVersion>6.0.0.0</FileVersion>
+		<license type="expression">Apache-2.0</license>
 		<PackageReleaseNotes>This adds Session Guid verification.</PackageReleaseNotes>
 	</PropertyGroup>
 	<ItemGroup>
